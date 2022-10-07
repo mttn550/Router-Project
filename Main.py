@@ -4,6 +4,7 @@ from socket import gethostbyname, gethostname, inet_aton
 from uuid import getnode as get_mac
 import threading, sys
 from Sniffer import Sniffer
+from IGMP import IGMPv3
 import tkinter as tk, tkinter.ttk as ttk
 
 
@@ -67,15 +68,16 @@ clients = table(root, ['MAC', 'IP'])
 clients[1].pack(side='left', padx=25, pady=40)
 
 
+join_pkt = s.Ether(src=MAC) / s.IP(src=OUT_ADDR, dst='224.0.0.9', proto=2) / IGMPv3.join()
+s.sendp(join_pkt)
+
+
 sniffer = Sniffer(ADDR, MASK, MAC, OUT_ADDR, DEF_GATEWAY_MAC, free_ip, INTERFACE, pkts, clients)
 
 dhcp_thread = threading.Thread(target=lambda:
     s.sniff(filter='udp and src port 68 and dst port 67', prn=sniffer.dhcp_handler, iface=INTERFACE), args=())
-
 pkt_thread = threading.Thread(target=lambda: s.sniff(filter='ip', prn=sniffer.sniff_handler, iface=INTERFACE), args=())
-
 rst_thread = threading.Thread(target=sniffer.sniff_rst, args=())
-
 arp_thread = threading.Thread(target=lambda: s.sniff(filter='arp', prn=sniffer.arp_handler, iface=INTERFACE), args=())
 
 dhcp_thread.start()

@@ -4,7 +4,6 @@ from socket import gethostbyname, gethostname, inet_aton
 from uuid import getnode as get_mac
 import threading, sys
 from Sniffer import Sniffer
-from IGMP import IGMPv3
 import tkinter as tk, tkinter.ttk as ttk
 
 
@@ -13,8 +12,8 @@ MASK = inet_aton('255.255.0.0')
 MAC = get_mac().to_bytes(6, 'big').hex(sep=':')
 OUT_ADDR = gethostbyname(gethostname())
 DEF_GATEWAY_MAC = '0c:b6:d2:e7:e2:c7'
-INTERFACE = get_working_if()
-
+#INTERFACE = get_working_if()
+INTERFACE = 'Ethernet 2'
 
 if sys.stdout != sys.__stdout__:
     sys.stdout = sys.__stdout__
@@ -68,10 +67,6 @@ clients = table(root, ['MAC', 'IP'])
 clients[1].pack(side='left', padx=25, pady=40)
 
 
-join_pkt = s.Ether(src=MAC) / s.IP(src=OUT_ADDR, dst='224.0.0.9', proto=2) / IGMPv3.join()
-s.sendp(join_pkt)
-
-
 sniffer = Sniffer(ADDR, MASK, MAC, OUT_ADDR, DEF_GATEWAY_MAC, free_ip, INTERFACE, pkts, clients)
 
 dhcp_thread = threading.Thread(target=lambda:
@@ -84,4 +79,5 @@ dhcp_thread.start()
 pkt_thread.start()
 arp_thread.start()
 rst_thread.start()
+igmp_thread.start()
 root.mainloop()

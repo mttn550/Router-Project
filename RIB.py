@@ -1,7 +1,6 @@
 from RIP import RIPv2
 import scapy.all as s
 
-
 class RoutingInfo:
 
     def __init__(self, dst, mask, gateway, metric):

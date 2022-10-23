@@ -88,7 +88,7 @@ class Sniffer:
             s.sendp(res, iface=self.interface)
 
     def sniff_rst(self):
-        w = pd.WinDivert(filter=f'ip.SrcAddr == {self.out_addr} and tcp and tcp.Rst == 1')
+        w = pd.WinDivert(filter=f'outbound and tcp and tcp.Rst == 1')
         w.open()
         while True:
             pkt = w.recv()

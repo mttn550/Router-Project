@@ -24,6 +24,13 @@ class Clients:
                 return client
         return None
 
+    def get_origin_port(self, port):
+        for client in self.clients:
+            for key, value in client.tcp_communications.items():
+                if port == value[0]:
+                    return key
+        return None
+
     def __add__(self, item):
         self.clients.append(item)
         return self

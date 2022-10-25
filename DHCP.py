@@ -31,7 +31,7 @@ class DHCP:
     def offer(self, transc_id, new_ip, cli_mac, code=b'\x02'):
         data = b'\x02\x01\x06\x00%b' % transc_id + b'\x00' * 8 + new_ip + b'\x00' * 8 + cli_mac + b'\x00' * 202 + \
             b'\x63\x82\x53\x63\x35\x01%b\x36\x04%b\x33\x04\x00\x00\x0e\x10\x01\x04%b\x03\x04%b\x06\x04%b\xff' \
-               % (code, self.addr[1], self.mask, self.addr[1], b'\x0a\x00\x00\x8a')
+               % (code, self.addr[1], self.mask, self.addr[1], inet_aton('10.0.0.138'))
         return data
 
     def request(self, cli_mac, ip, transc_id):

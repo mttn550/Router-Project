@@ -1,12 +1,14 @@
-from socket import inet_aton, socket, AF_INET, SOCK_STREAM
+from socket import inet_aton, inet_ntoa, socket, AF_INET, SOCK_STREAM
 import scapy.all as s, pydivert as pd
+from scapy.layers.inet import Ether, IP, TCP, UDP, ICMP
+from scapy.layers.l2 import ARP
 from DHCP import DHCP
 import Client
 
 
 class Sniffer:
 
-    def __init__(self, addr, mask, mac, out_addr, def_gateway_mac, free_ip, interface, pkt_table, client_table):
+    def __init__(self, addr, mask, mac, out_addr, def_gateway_mac, free_ip, interface, mtu, tables):
         self.addr = addr, inet_aton(addr)
         self.mask = mask
         self.mac = mac
@@ -14,9 +16,10 @@ class Sniffer:
         self.def_gateway_mac = def_gateway_mac
         self.free_ip = free_ip
         self.interface = interface
+        self.mtu = mtu
         self.DHCP = DHCP(addr, mask, mac, interface)
         self.clients = Client.Clients()
-        self.tables = (pkt_table, client_table)
+        self.tables = tables
 
     @staticmethod
     def find_free_port():
@@ -27,11 +30,13 @@ class Sniffer:
         return port, s1
 
     def dhcp_handler(self, pkt):
-        print('DHCP Packet Detected.')
-        data = bytes(pkt[s.UDP].payload)
+        data = bytes(pkt[UDP].payload)
         transc_id = data[4:8]
         cli_mac = data[28:34]
         options = data[240:]
+
+        if cli_mac != b'\x70\x85\xc2\x3f\x7f\xba':
+            return
 
         name, ip = None, None
         i = 0
@@ -64,27 +69,26 @@ class Sniffer:
                 self.DHCP.request(cli_mac, self.clients[cli_mac].addr, transc_id)
                 mac_str = ':'.join(hex(i)[2:].zfill(2) for i in cli_mac)
                 ip_str = '.'.join(str(i) for i in self.clients[cli_mac].addr)
-                self.tables[1].insert(parent='', index='end', text='', values=(mac_str, ip_str))
-                self.tables[1].yview_moveto(1)
+                # self.tables[1].insert(parent='', index='end', text='', values=(mac_str, ip_str))
+                # self.tables[1].yview_moveto(1)
 
         else:  # Release
             if self.clients[cli_mac]:
-                for client in self.tables[1].get_children():
-                    if self.tables[1].item(client)['values'][0] == ':'.join(hex(i)[2:].zfill(2) for i in cli_mac):
-                        self.tables[1].delete(client)
-                        break
+                # for client in self.tables[1].get_children():
+                #     if self.tables[1].item(client)['values'][0] == ':'.join(hex(i)[2:].zfill(2) for i in cli_mac):
+                #         self.tables[1].delete(client)
+                #         break
                 self.free_ip.append(self.clients[cli_mac].addr)
-                self.clients[cli_mac].sock.close()
                 self.clients -= cli_mac
             print('Client removed.')
 
     def arp_handler(self, pkt):
-        if pkt[s.ARP].pdst == self.addr[0]:
-            res = s.Ether() / s.ARP(op=2)
-            res[s.ARP].pdst = pkt[s.ARP].psrc
-            res[s.ARP].hwdst = pkt[s.ARP].hwsrc
-            res[s.ARP].psrc = self.addr[0]
-            res[s.Ether].dst = pkt[s.Ether].src
+        if pkt[ARP].pdst == self.addr[0]:
+            res = Ether() / ARP(op=2)
+            res[ARP].pdst = pkt[ARP].psrc
+            res[ARP].hwdst = pkt[ARP].hwsrc
+            res[ARP].psrc = self.addr[0]
+            res[Ether].dst = pkt[Ether].src
             s.sendp(res, iface=self.interface)
 
     def sniff_rst(self):
@@ -92,67 +96,69 @@ class Sniffer:
         w.open()
         while True:
             pkt = w.recv()
-            if self.clients[pkt.src_port] is None:
+            if self.clients.get_port(pkt.src_port) is None:
                 w.send(pkt)
 
     def sniff_handler(self, pkt):
-        smac, src, dmac, dst = \
-            pkt[s.Ether].src, pkt[s.IP].src, pkt[s.Ether].dst, pkt[s.IP].dst
+        smac, src, dmac, dst = pkt[Ether].src, pkt[IP].src, pkt[Ether].dst, pkt[IP].dst
 
         if bin(int(dmac.split(':')[-1][0], 16))[2:].zfill(4)[0] == '1' and dmac == self.mac:  # Unicast
 
             if dst not in (self.addr[0], self.out_addr):
 
-                if pkt.haslayer(s.TCP) or pkt.haslayer(s.UDP):
-                    if self.clients[src] is not None:  # NAT Address
-                        port, sock = self.find_free_port()
-                        self.clients[src].tcp_communications[port] = (pkt[0][2].sport, sock)
-                        pkt[0][2].sport = port
-                        pkt[s.IP].src = self.out_addr
-                    pkt[s.Ether].src = self.mac
-                    pkt[s.Ether].dst = self.def_gateway_mac
-                    del pkt[s.IP].chksum
+                if pkt.haslayer(TCP) or pkt.haslayer(UDP):
+                    if self.clients[inet_aton(src)] is not None:  # NAT Address
+                        if self.clients.get_origin_port(pkt[0][2].sport) is None:
+                            port, sock = self.find_free_port()
+                            self.clients[inet_aton(src)].tcp_communications[port] = (pkt[0][2].sport, sock)
+                            pkt[0][2].sport = port
+                        else:
+                            pkt[0][2].sport = self.clients.get_origin_port(pkt[0][2].sport)
+                        pkt[IP].src = self.out_addr
+                    pkt[Ether].src = self.mac
+                    pkt[Ether].dst = self.def_gateway_mac
+                    del pkt[IP].chksum
                     del pkt[0][2].chksum
 
-                elif pkt.haslayer(s.ICMP):
-                    if self.clients[src] is not None:  # NAT Address
-                        self.clients[src].icmp_seq = pkt[s.ICMP].seq
-                        pkt[s.IP].src = self.out_addr
-                    pkt[s.Ether].src = self.mac
-                    pkt[s.Ether].dst = self.def_gateway_mac
-                    del pkt[s.IP].chksum
-                    del pkt[s.ICMP].chksum
+                elif pkt.haslayer(ICMP):
+                    if self.clients[inet_aton(pkt[IP].src)] is not None:  # NAT Address
+                        self.clients[inet_aton(pkt[IP].src)].icmp = pkt[ICMP].seq
+                        pkt[IP].src = self.out_addr
+                    pkt[Ether].src = self.mac
+                    pkt[Ether].dst = self.def_gateway_mac
+                    del pkt[IP].chksum
+                    del pkt[ICMP].chksum
 
-                s.sendp(pkt, iface=self.interface)
-                self.tables[0].insert(parent='', index='end', text='', values=[src, pkt[s.IP].dst])
-                self.tables[0].yview_moveto(1)
+                s.sendp(pkt[Ether].fragment(self.mtu), iface=self.interface)
+                # self.tables[0].push((pkt[IP].src, src))
 
             elif dst == self.out_addr:
 
-                if pkt.haslayer(s.TCP) or pkt.haslayer(s.UDP):
-                    if self.clients.get_port(pkt[0][2].dport) is not None:
-                        client = self.clients.get_port(pkt[0][2].dport)
-                        smac, src = client.mac, client.addr
+                if pkt.haslayer(TCP) or pkt.haslayer(UDP):
+                    client = self.clients.get_port(pkt[0][2].dport)
+                    if client is not None:
                         port = pkt[0][2].dport
                         pkt[0][2].dport = client.tcp_communications[port][0]
-                        if (pkt.haslayer(s.TCP) and pkt[0][2].flags.F) or pkt.haslayer(s.UDP):
+                        if (pkt.haslayer(TCP) and pkt[0][2].flags.F) or pkt.haslayer(UDP):
                             client.tcp_communications[port][1].close()
                             del client.tcp_communications[port]
-                        pkt[s.IP].dst = src
-                        pkt[s.Ether].src = self.mac
-                        pkt[s.Ether].dst = smac
-                        del pkt[s.IP].chksum
+                        pkt[IP].dst = inet_ntoa(client.addr)
+                        pkt[Ether].src = self.mac
+                        pkt[Ether].dst = client.mac
+                        del pkt[IP].chksum
                         del pkt[0][2].chksum
 
-                elif pkt.haslayer(s.ICMP):
-                    client = self.clients[pkt[s.ICMP].seq]
-                    smac, src = client.mac, client.addr
-                    pkt[s.IP].dst = src
-                    pkt[s.Ether].src = self.mac
-                    pkt[s.Ether].dst = smac
-                    del pkt[s.IP].chksum
-                    del pkt[s.ICMP].chksum
+                        s.sendp(pkt[Ether].fragment(self.mtu), iface=self.interface)
+                        # self.tables[0].push((src, inet_ntoa(client.addr)))
 
-            s.sendp(pkt, iface=self.interface)
-            self.tables[0].insert(parent='', index='end', text='', values=[pkt[s.IP].src, src])
-            self.tables[0].yview_moveto(1)
+                elif pkt.haslayer(ICMP):
+                    client = self.clients[pkt[ICMP].seq]
+                    if client is not None:
+                        pkt[IP].dst = inet_ntoa(client.addr)
+                        pkt[Ether].src = self.mac
+                        pkt[Ether].dst = client.mac
+                        del pkt[IP].chksum
+                        del pkt[ICMP].chksum
+
+                        s.sendp(pkt[Ether].fragment(self.mtu), iface=self.interface)
+                        # self.tables[0].push((src, inet_ntoa(client.addr)))

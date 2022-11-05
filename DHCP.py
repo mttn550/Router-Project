@@ -1,5 +1,6 @@
 import scapy.all as s
 from socket import inet_aton
+from scapy.layers.inet import Ether, IP, UDP
 
 
 BROADCAST = 'ff:ff:ff:ff:ff:ff', '255.255.255.255'
@@ -22,9 +23,9 @@ class DHCP:
 
     def discover(self, cli_mac, ip, transc_id):
         s.sendp(
-            (s.Ether(src=self.mac, dst=BROADCAST[0]) /
-             s.IP(src=self.addr[0], dst=BROADCAST[1]) /
-             s.UDP(dport=68, sport=67) /
+            (Ether(src=self.mac, dst=BROADCAST[0]) /
+             IP(src=self.addr[0], dst=BROADCAST[1]) /
+             UDP(dport=68, sport=67) /
              self.offer(transc_id, ip, cli_mac)),
             iface=self.interface)
 
@@ -36,9 +37,9 @@ class DHCP:
 
     def request(self, cli_mac, ip, transc_id):
         s.sendp(
-            (s.Ether(src=self.mac, dst=BROADCAST[0]) /
-             s.IP(src=self.addr[0], dst=BROADCAST[1]) /
-             s.UDP(dport=68, sport=67) /
+            (Ether(src=self.mac, dst=BROADCAST[0]) /
+             IP(src=self.addr[0], dst=BROADCAST[1]) /
+             UDP(dport=68, sport=67) /
              self.acknowledge(transc_id, ip, cli_mac)),
             iface=self.interface)
 

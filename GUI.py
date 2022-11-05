@@ -17,10 +17,10 @@ class GUI:
 
     def update_tables(self):
         while True:
-            while self.table_data[0] != []:
+            while self.table_data[0]:
                 self.pkts[0].insert(parent='', index='end', text='', values=self.table_data[0].pop(0))
                 self.pkts[0].yview_moveto(1)
-            while self.table_data[1] != []:
+            while self.table_data[1]:
                 self.pkts[0].insert(parent='', index='end', text='', values=self.table_data[1].pop(0))
                 self.pkts[0].yview_moveto(1)
 

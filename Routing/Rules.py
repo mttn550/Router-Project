@@ -1,54 +1,60 @@
-class L4Rule:
-
-    def __init__(self, type, sock, *data):
-        self.data = (type, *data)
-        self.sock = sock
-        self._time = 30
-        self._is_tick = False
-
-    def refresh(self):
-        self._time = 30
-
-    def set_tick(self):
-        self._is_tick = True
-
-    def tick(self):
-        if self._is_tick:
-            self._time -= 1
-        return self._time == 0
-
-    def __getitem__(self, item):
-        return self.data[item]
+import copy, socket
 
 
 class Rules:
 
     def __init__(self):
-        self.rules = set()
+        """
+        Initializes the rules.
+        keys: protocol, (dst IP, dst port) | (dst IP, ICMP type, ICMP seq)
+        values: a set of (src IP, <src port, NAT port>, socket, TTL)
+        """
+        self.rules = {}
+        self.base_ttl = 300  # seconds
 
-    def add4(self, type, *data):
-        self.rules.add(L4Rule(type, *data))
+    def __getitem__(self, item):
+        protocol, addr, *data = item
+        data = tuple(data)
+        if not any(i in self.rules.keys() for i in ((protocol, addr), (protocol, (-1, -1)))): return None
+        if not data: return next(iter(self.rules[(protocol, addr)]))
+        port, pindex = data
+        if (protocol, addr) in self.rules.keys(): conn = self.rules[(protocol, addr)].copy()
+        else: conn = self.rules[(protocol, (-1, -1))].copy()
+        result = None
+        for item in conn:
+            if item[pindex] == port:
+                result = item
+        del conn
+        return result
 
-    def add(self, type, *data):
-        self.rules.add((type, *data))
+    def __setitem__(self, key, value):
+        if type(value[-1]) != int: value = (*value, 0)
+        if key not in self.rules.keys(): self.rules[key] = set()
+        self.rules[key].add(value)
+        return self
 
-    def get_rule(self, pkt_type, data):
-        for rule in self.rules:
-            if type(rule) == L4Rule:
-                if pkt_type in rule.data and data in rule.data:
-                    return rule
-            else:
-                if pkt_type in rule and not any(i not in rule for i in data):
-                    return rule
-        return None
+    def keys(self):
+        return self.rules.keys()
 
-    def translate(self, type, index, *data):
-        rule = self.get_rule(type, *data)
-        if rule is None: return None
-        return tuple(rule[i] for i in index)
+    def add_static(self, proto, port, dst, dport):
+        if proto == 'tcp': sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        elif proto == 'udp': sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        else: raise TypeError("Invalid Protocol: Must be 'tcp' or 'udp'.")
+        sock.bind(('0.0.0.0', port))
+        self.rules[(proto, (-1, -1))] = {(dst, dport, port, sock, -1)}
 
     def tick(self):
-        for rule in self.rules:
-            if type(rule) == L4Rule and rule.tick():
-                rule.sock.close()
-                self.rules.remove(rule)
+        keys = copy.copy(tuple(self.rules.keys()))
+        for key in keys:
+            new_rules = set()
+            conn = self.rules[key].copy()
+            for item in conn:
+                if item[-1] > 1: new_rules.add((*item[:-1], item[-1] - 1))
+                elif item[-1] == 1: item[-2].close()  # Close the socket.
+                else: new_rules.add(item)
+            for item in self.rules[key] - conn:
+                new_rules.add(item)
+            del conn
+            self.rules[key] = new_rules
+        if keys: del new_rules
+        del keys

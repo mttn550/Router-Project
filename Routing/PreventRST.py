@@ -3,7 +3,7 @@ from socket import inet_aton
 
 
 def sniff_rst(rules):
-    w = pd.WinDivert(filter=f'outbound and tcp and tcp.Rst == 1')
+    w = pd.WinDivert(filter=f'outbound and ip and tcp and tcp.Rst == 1')
     w.open()
     while True:
         pkt = w.recv()

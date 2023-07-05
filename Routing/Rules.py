@@ -50,7 +50,7 @@ class Rules:
             conn = self.rules[key].copy()
             for item in conn:
                 if item[-1] > 1: new_rules.add((*item[:-1], item[-1] - 1))
-                elif item[-1] == 1: item[-2].close()  # Close the socket.
+                elif item[-1] == 1 and item[-2] is not None: item[-2].close()  # Close the socket.
                 else: new_rules.add(item)
             for item in self.rules[key] - conn:
                 new_rules.add(item)

@@ -44,6 +44,7 @@ class Ethernet:
             ip = IP(self.payload.parse_header() + data[i: num + i]); ip.len = len(ip.parse())
             if i + num < len(data): ip.flags['MF'] = '1'
             ip.frag_index = bin(i // 8)[2:].zfill(13)
+            ip.len = len(ip.parse())
             ip.calc_checksum()
             result.append(Ethernet((self.src, self.dst, self.proto, ip)).parse())
         return result
@@ -124,6 +125,17 @@ class IP:
             if type(pkt) == bytes: return False
             pkt = pkt.payload
 
+    def __getitem__(self, item):
+        result = self
+        if type(item) == int:
+            for i in range(item):
+                result = result.payload
+            return result
+        while type(result) != bytes:
+            result = result.payload
+            if type(result) == item: return result
+        raise TypeError
+
     def calc_checksum(self):
         self.checksum = 0
         data = self.parse()[:self.hlen]
@@ -169,6 +181,17 @@ class UDP:
     def __len__(self):
         return 8 + len(self.payload)
 
+    def __getitem__(self, item):
+        result = self
+        if type(item) == int:
+            for i in range(item):
+                result = result.payload
+            return result
+        while type(result) != bytes:
+            result = result.payload
+            if type(result) == item: return result
+        raise TypeError
+
     def calc_checksum(self, src, dst):
         self.checksum = 0
         data = src + dst + b'\x00\x11' + (8 + len(self.payload)).to_bytes(2, 'big') + self.parse()
@@ -205,6 +228,17 @@ class TCP:
 
     def __len__(self):
         return len(self.parse())
+
+    def __getitem__(self, item):
+        result = self
+        if type(item) == int:
+            for i in range(item):
+                result = result.payload
+            return result
+        while type(result) != bytes:
+            result = result.payload
+            if type(result) == item: return result
+        raise TypeError
 
     def calc_checksum(self, src, dst):
         self.checksum = 0
@@ -248,6 +282,17 @@ class ICMP:
 
     def __len__(self):
         return len(self.parse())
+
+    def __getitem__(self, item):
+        result = self
+        if type(item) == int:
+            for i in range(item):
+                result = result.payload
+            return result
+        while type(result) != bytes:
+            result = result.payload
+            if type(result) == item: return result
+        raise TypeError
 
     def calc_checksum(self):
         self.checksum = 0

@@ -58,10 +58,12 @@ class MainScreenProtoStats(QtWidgets.QVBoxLayout):
         self.addWidget(self.comm)
 
     def update_stats(self):
-        count, sessions = eval(f'self.data.{self.proto.lower()}()')
-        if self.data.total() == 0:
-            self.percent.setText('Total packets: 0%')
-        else:
-            self.percent.setText(f'Total packets: {int(count / self.data.total() * 100)}%')
-        self.comm.setText(f'Sessions started: {sessions}' if self.proto.upper() != 'ICMP'
-                          else f'Packets sent: {sessions}')
+        try:
+            count, sessions = eval(f'self.data.{self.proto.lower()}()')
+            if self.data.total() == 0:
+                self.percent.setText('Total packets: 0%')
+            else:
+                self.percent.setText(f'Total packets: {int(count / self.data.total() * 100)}%')
+            self.comm.setText(f'Sessions started: {sessions}' if self.proto.upper() != 'ICMP'
+                              else f'Packets sent: {sessions}')
+        except RuntimeError: return

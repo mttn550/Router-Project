@@ -33,12 +33,14 @@ class Sniffer:
                 pkt.payload.payload = ICMP(data=pkt.payload.payload, length=pkt.payload.len - pkt.payload.hlen)
                 if pkt.payload.payload.type not in (8, 0, 13, 14, 18, 10, 9):  # Aka, an error reporting ICMP message.
                     pkt.payload.payload.payload = IP(pkt.payload.payload.payload)
-                    len, hlen = pkt.payload.payload.payload.len, pkt.payload.payload.payload.hlen
                     data = pkt.payload.payload.payload.payload
+                    length, hlen = pkt.payload.len - pkt.payload.hlen - \
+                                (len(pkt.payload.payload) - len(pkt.payload.payload.payload.parse())), \
+                        pkt.payload.payload.payload.hlen
                     if pkt.payload.payload.payload.proto == 6:  # TCP
-                        pkt.payload.payload.payload.payload = TCP(data=data, length=len - hlen)
+                        pkt.payload.payload.payload.payload = TCP(data=data, length=length - hlen)
                     elif pkt.payload.payload.payload.proto == 17:  # UDP
-                        pkt.payload.payload.payload.payload = UDP(data=data, length=len - hlen)
+                        pkt.payload.payload.payload.payload = UDP(data=data, length=length - hlen)
                     elif pkt.payload.payload.payload.proto == 1:  # ICMP
-                        pkt.payload.payload.payload.payload = ICMP(data=data, length=len - hlen)
+                        pkt.payload.payload.payload.payload = ICMP(data=data, length=length - hlen)
         return pkt

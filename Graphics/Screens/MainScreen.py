@@ -1,8 +1,9 @@
 from PyQt5 import QtWidgets, QtGui, QtCore
-from Graphics.Widgets.SniffTable import SniffTable
+from Graphics.Widgets.SniffTable import TableManager
 from Graphics.Widgets.Statistics import MainScreenStats
 from Graphics.Widgets.Clients import MainWindowClient
 from Graphics.Widgets.HLine import HLine
+from socket import inet_ntoa, inet_aton
 
 
 class MainScreen(QtWidgets.QWidget):
@@ -15,7 +16,7 @@ class MainScreen(QtWidgets.QWidget):
         layout = QtWidgets.QHBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
         self.setLayout(layout)
-        self.table = SniffTable()
+        self.table = TableManager()
 
         main_frame = QtWidgets.QFrame()
         layout.addWidget(main_frame)
@@ -47,13 +48,12 @@ class MainScreen(QtWidgets.QWidget):
         cli_layout.addWidget(self.tot_client)
         layout2.addWidget(HLine())
         self.cli_queue = []
+        for client in self.data.clients():
+            client = inet_ntoa(client)
+            self.add_client((client, *self.data.client_stats[client][:2]))
 
         self.stats = MainScreenStats(self.data)
         layout2.addWidget(self.stats)
-
-        btn = QtWidgets.QPushButton('Remove Client')
-        btn.clicked.connect(lambda: self.remove_client(self.data.clients()[0]))
-        layout2.addWidget(btn)
 
         self.setMinimumSize(1029, 450)
 
@@ -65,6 +65,7 @@ class MainScreen(QtWidgets.QWidget):
         else:
             self.cli_queue.append(data)
         self.tot_client.setText(self.tot_client.text()[:7] + str(int(self.tot_client.text()[7:]) + 1))
+        self.table.add_client(inet_aton(data[0]), data[1])
 
     def remove_client(self, ip):
         for cli in self.cli, self.cli2:
@@ -74,6 +75,7 @@ class MainScreen(QtWidgets.QWidget):
                     cli.update_client(self.cli_queue.pop(0))
                 self.tot_client.setText(self.tot_client.text()[:7] + str(int(self.tot_client.text()[7:]) - 1))
                 break
+        self.table.remove_client(inet_aton(ip))
 
     def add_pkt(self, time, pkt):
         self.table.add(time, pkt)

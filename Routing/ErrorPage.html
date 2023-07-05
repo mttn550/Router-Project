@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Website Blocked!</title>
+    <style>
+      body {
+        background-color: #f8f9fa;
+        font-family: Arial, sans-serif;
+        color: #343a40;
+        text-align: center;
+      }
+      h1 {
+        font-size: 3rem;
+        margin-top: 4rem;
+      }
+      p {
+        font-size: 1.5rem;
+        margin-top: 2rem;
+      }
+      button {
+        background-color: #007bff;
+        border: none;
+        color: #fff;
+        font-size: 1.2rem;
+        padding: 1rem 2rem;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        margin-top: 2rem;
+      }
+      button:hover {
+        background-color: #0062cc;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Website Blocked!</h1>
+    <p style="line-height: 1.5;">The page you are trying to reach has been blocked by your MataNet router. <br/>
+      To resolve this issue, Please contact the router administrator.</p>
+    <button onclick="goBack()">Go Back</button>
+    <script>
+      function goBack() {
+        window.history.back();
+      }
+    </script>
+  </body>
+</html>
